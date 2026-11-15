@@ -38,7 +38,7 @@ export default function AtlasMap() {
   const flightFeats = useRef<any[]>([]);
   const searchTimer = useRef<any>(null);
   const [sel, setSel] = useState<Selected | null>(null);
-  const [imgT, setImgT] = useState(Date.now());
+  const [imgT, setImgT] = useState(0);
   const [streamFail, setStreamFail] = useState(false);
   const [on, setOn] = useState({ cameras: true, flights: true, ships: true, quakes: true });
   const [counts, setCounts] = useState({ cameras: 0, flights: 0, ships: 0, quakes: 0 });
@@ -258,13 +258,19 @@ export default function AtlasMap() {
       map.on("moveend", syncHash);
 
       // cluster click -> zoom in
-      map.on("click", "clusters", (e) => {
+      map.on("click", "clusters", async (e) => {
         const f = map.queryRenderedFeatures(e.point, { layers: ["clusters"] })[0];
+        if (!f) return;
         const cid = f.properties!.cluster_id;
-        (map.getSource("cameras") as any).getClusterExpansionZoom(cid, (err: any, zoom: number) => {
-          if (err) return;
+        const src = map.getSource("cameras") as any;
+        try {
+          // MapLibre GL JS v4+ returns a Promise (the old callback form never fires)
+          const zoom = await src.getClusterExpansionZoom(cid);
           map.easeTo({ center: (f.geometry as any).coordinates, zoom });
-        });
+        } catch {
+          // fallback: just zoom in a few levels toward the cluster
+          map.easeTo({ center: (f.geometry as any).coordinates, zoom: Math.min(map.getZoom() + 2.5, 16) });
+        }
       });
 
       for (const id of ["clusters", "cameras-hit", "flights-hit", "ships-hit"]) {

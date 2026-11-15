@@ -1,6 +1,7 @@
-import AtlasMap from "@/components/AtlasMap";
+import AtlasMapClient from "@/components/AtlasMapClient";
 
-// Server component shell. The map is a client component (needs the browser).
+// Server component shell. The map renders client-only (needs the browser;
+// SSR would cause hydration mismatches).
 export default function Page() {
-  return <AtlasMap />;
+  return <AtlasMapClient />;
 }
