@@ -304,7 +304,9 @@ export default function AtlasMap() {
   }, []);
 
   const camIsYoutube = sel?.kind === "camera" && /youtube\.com\/embed\//i.test(sel.stream);
-  const camIsClip = sel?.kind === "camera" && !camIsYoutube && /\.(mp4|webm)(\?|$)/i.test(sel.stream);
+  const camIsWindyPlayer = sel?.kind === "camera" && /webcams\.windy\.com\/webcams\/public\/embed/i.test(sel.stream);
+  const camIsEmbed = camIsYoutube || camIsWindyPlayer;
+  const camIsClip = sel?.kind === "camera" && !camIsEmbed && /\.(mp4|webm)(\?|$)/i.test(sel.stream);
   const camHasHls = sel?.kind === "camera" && /\.m3u8(\?|$)/i.test(sel.stream);
   const showHlsVideo = camHasHls && !streamFail;
   const n = (v: number) => v.toLocaleString();
@@ -439,9 +441,9 @@ export default function AtlasMap() {
             <button className="cam-close" onClick={() => setSel(null)} aria-label="Close">×</button>
           </div>
           <div className="cam-body">
-            {camIsYoutube ? (
-              <iframe className="cam-media" src={sel.stream} title={sel.name}
-                allow="autoplay; encrypted-media; picture-in-picture" allowFullScreen
+            {camIsEmbed ? (
+              <iframe className="cam-media" src={camIsYoutube ? sel.stream : sel.stream + "?autoplay=1"} title={sel.name}
+                allow="autoplay; encrypted-media; picture-in-picture; fullscreen" allowFullScreen
                 frameBorder="0" referrerPolicy="origin-when-cross-origin" />
             ) : camIsClip ? (
               <video className="cam-media" src={sel.stream} autoPlay loop muted playsInline />
@@ -452,8 +454,8 @@ export default function AtlasMap() {
                 src={`/api/cam/${encodeURIComponent(sel.id)}/image?t=${imgT}`}
                 onError={(e) => ((e.target as HTMLImageElement).style.opacity = "0.3")} />
             )}
-            <span className={`cam-badge ${(camIsClip || showHlsVideo || camIsYoutube) ? "cam-live" : ""}`}>
-              {camIsYoutube ? "● live stream" : showHlsVideo ? "● live video" : camIsClip ? "● live clip" : "● live · refreshing"}
+            <span className={`cam-badge ${(camIsClip || showHlsVideo || camIsEmbed) ? "cam-live" : ""}`}>
+              {camIsYoutube ? "● live stream" : camIsWindyPlayer ? "● live player" : showHlsVideo ? "● live video" : camIsClip ? "● live clip" : "● live · refreshing"}
             </span>
             <div className="cam-rows">
               <div className="cam-row"><span className="k">Source</span><span className="v">{sel.source || "—"}</span></div>
@@ -479,7 +481,11 @@ export default function AtlasMap() {
               <><br /><a className="cam-link" target="_blank" rel="noopener"
                 href={sel.stream.replace("/embed/", "/watch?v=").replace(/\?.*$/, "")}>▶ Open stream on YouTube ↗</a></>
             )}
-            {sel.stream && !camIsClip && !camHasHls && !camIsYoutube && (
+            {camIsWindyPlayer && (
+              <><br /><a className="cam-link" target="_blank" rel="noopener"
+                href={`https://www.windy.com/webcams/${(sel.id.split(":")[1] || "")}`}>▶ Open on Windy ↗</a></>
+            )}
+            {sel.stream && !camIsClip && !camHasHls && !camIsEmbed && (
               <><br /><a className="cam-link" target="_blank" rel="noopener" href={sel.stream}>Open source page ↗</a></>
             )}
           </div>

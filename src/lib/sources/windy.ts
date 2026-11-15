@@ -15,7 +15,7 @@ async function pageUrl(key: string, extra: string, cap: number): Promise<any[]> 
   const out: any[] = [];
   for (let offset = 0; offset < cap; offset += 50) {
     const url = `https://api.windy.com/webcams/api/v3/webcams?limit=50&offset=${offset}` +
-      `&include=location,images,urls${extra}`;
+      `&include=location,images,urls,player${extra}`;
     const r = await fetch(url, { headers: { "x-windy-api-key": key } });
     if (!r.ok) break;
     const d = await r.json();
@@ -54,7 +54,9 @@ export const windy: SourceAdapter = {
         country: c.location.country_code || c.location.country,
         kind: "image" as const,
         imageUrl: c.images?.current?.preview, // token expires; proxy refetches
-        streamUrl: c.urls?.detail,
+        // Windy's own live player (animated, with a Live-stream control) —
+        // far better than a static still; falls back to the still if absent.
+        streamUrl: c.player?.live || `https://webcams.windy.com/webcams/public/embed/player/${c.webcamId}/live`,
         available: c.status === "active",
       }));
   },
