@@ -21,7 +21,7 @@ export default function AtlasMap() {
       customAttribution: "© OSM · CARTO · TfL · Windy · orendor.ru · USGS · NASA · adsb.fi" }), "bottom-right");
     map.addControl(new maplibregl.NavigationControl({ showCompass: false }), "bottom-right");
 
-    const gj = (f: any[] = []) => ({ type: "FeatureCollection", features: f });
+    const gj = (f: any[] = []) => ({ type: "FeatureCollection" as const, features: f });
 
     map.on("load", async () => {
       // --- our own proxied sources ---
