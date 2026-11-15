@@ -24,10 +24,57 @@ const GROUPS: Record<string, string[]> = {
 export default function AtlasMap() {
   const ref = useRef<HTMLDivElement>(null);
   const mapRef = useRef<maplibregl.Map | null>(null);
+  const camFeats = useRef<any[]>([]);
+  const flightFeats = useRef<any[]>([]);
+  const searchTimer = useRef<any>(null);
   const [sel, setSel] = useState<Selected | null>(null);
   const [imgT, setImgT] = useState(Date.now());
   const [on, setOn] = useState({ cameras: true, flights: true, quakes: true });
   const [counts, setCounts] = useState({ cameras: 0, flights: 0, quakes: 0 });
+  const [query, setQuery] = useState("");
+  const [results, setResults] = useState<any[]>([]);
+
+  function camSelFromFeature(f: any): CameraSel {
+    const p = f.properties; const [lon, lat] = f.geometry.coordinates;
+    return { kind: "camera", id: p.id, name: p.name || "Camera", source: p.source || "",
+      country: p.country || "", lat, lon, stream: p.stream || "" };
+  }
+
+  function openResult(r: any) {
+    const map = mapRef.current;
+    if (r.type === "camera") {
+      const feat = camFeats.current.find((f) => f.properties.id === r.id);
+      const s = feat ? camSelFromFeature(feat)
+        : { kind: "camera" as const, id: r.id, name: r.label, source: r.source || "",
+            country: "", lat: r.lat, lon: r.lon, stream: "" };
+      setSel(s);
+    } else {
+      const [cs, ty] = (r.label || "").split(" · ");
+      setSel({ kind: "flight", hex: r.id, callsign: cs || "", type: ty || "",
+        alt: null, track: null, mil: false, lat: r.lat, lon: r.lon });
+    }
+    map?.flyTo({ center: [r.lon, r.lat], zoom: Math.max(map.getZoom(), 13) });
+    setResults([]); setQuery(r.label || "");
+  }
+
+  function onSearch(v: string) {
+    setQuery(v);
+    clearTimeout(searchTimer.current);
+    if (v.trim().length < 2) { setResults([]); return; }
+    searchTimer.current = setTimeout(async () => {
+      try {
+        const d = await (await fetch(`/api/search?q=${encodeURIComponent(v.trim())}`)).json();
+        setResults((d.results || []).slice(0, 12));
+      } catch { setResults([]); }
+    }, 300);
+  }
+
+  function shareLink(): string {
+    const map = mapRef.current; if (!map || !sel) return location.href;
+    const c = map.getCenter(); const z = map.getZoom().toFixed(2);
+    const tail = sel.kind === "camera" ? `cam/${sel.id}` : `flt/${sel.hex}`;
+    return `${location.origin}${location.pathname}#${z}/${c.lat.toFixed(4)}/${c.lng.toFixed(4)}/${tail}`;
+  }
 
   useEffect(() => {
     if (!sel || sel.kind !== "camera") return;
@@ -47,9 +94,18 @@ export default function AtlasMap() {
 
   useEffect(() => {
     if (!ref.current) return;
+
+    // parse #<zoom>/<lat>/<lon>[/cam/<id>|/flt/<hex>]
+    const hp = location.hash.replace(/^#/, "").split("/");
+    const hz = parseFloat(hp[0]), hlat = parseFloat(hp[1]), hlon = parseFloat(hp[2]);
+    const hasView = isFinite(hz) && isFinite(hlat) && isFinite(hlon);
+    const deep = hp[3] === "cam" ? { t: "cam", v: hp.slice(4).join("/") }
+      : hp[3] === "flt" ? { t: "flt", v: hp[4] } : null;
+
     const map = new maplibregl.Map({
       container: ref.current, style: STYLE,
-      center: [55.1, 51.77], zoom: 4, attributionControl: false,
+      center: hasView ? [hlon, hlat] : [55.1, 51.77],
+      zoom: hasView ? hz : 4, attributionControl: false,
     });
     mapRef.current = map;
     map.addControl(new maplibregl.AttributionControl({ compact: true,
@@ -103,11 +159,13 @@ export default function AtlasMap() {
         try {
           const c = await (await fetch("/api/cameras")).json();
           (map.getSource("cameras") as any)?.setData(c);
+          camFeats.current = c.features || [];
           setCounts((x) => ({ ...x, cameras: c.features?.length || 0 }));
         } catch {}
         try {
           const fl = await (await fetch("/api/flights")).json();
           (map.getSource("flights") as any)?.setData(fl);
+          flightFeats.current = fl.features || [];
           setCounts((x) => ({ ...x, flights: fl.features?.length || 0 }));
         } catch {}
         try {
@@ -120,6 +178,29 @@ export default function AtlasMap() {
       await load();
       const t = setInterval(load, 30000);
       map.once("remove", () => clearInterval(t));
+
+      // open a deep-linked selection once data is in
+      if (deep) {
+        if (deep.t === "cam") {
+          const feat = camFeats.current.find((f) => f.properties.id === deep.v);
+          if (feat) setSel(camSelFromFeature(feat));
+        } else {
+          const feat = flightFeats.current.find((f) => f.properties.hex === deep.v);
+          if (feat) {
+            const p: any = feat.properties; const [lon, lat] = feat.geometry.coordinates;
+            setSel({ kind: "flight", hex: p.hex || "", callsign: (p.flight || "").trim(),
+              type: p.type || "", alt: p.alt ?? null, track: p.track ?? null,
+              mil: p.mil === true || p.mil === "true", lat, lon });
+          }
+        }
+      }
+
+      // keep the URL hash in sync with the view (shareable)
+      const syncHash = () => {
+        const c = map.getCenter(); const z = map.getZoom();
+        history.replaceState(null, "", `#${z.toFixed(2)}/${c.lat.toFixed(4)}/${c.lng.toFixed(4)}`);
+      };
+      map.on("moveend", syncHash);
 
       // cluster click -> zoom in
       map.on("click", "clusters", (e) => {
@@ -161,6 +242,20 @@ export default function AtlasMap() {
     <>
       <style>{`
         .atlas-map{position:absolute;inset:0}
+        .search-box{position:absolute;top:12px;left:12px;z-index:16;width:300px;max-width:calc(100vw - 24px);
+          font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif}
+        .search-box input{width:100%;padding:11px 14px;background:#0e141f;color:#dfe7f2;font-size:14px;
+          border:1px solid #1e2a3d;border-radius:12px;box-shadow:0 10px 30px rgba(0,0,0,.4);outline:none}
+        .search-box input::placeholder{color:#8396b0}
+        .search-res{margin-top:6px;background:#0e141f;border:1px solid #1e2a3d;border-radius:12px;overflow:hidden;
+          box-shadow:0 10px 30px rgba(0,0,0,.4);max-height:50vh;overflow-y:auto}
+        .search-item{display:flex;align-items:center;gap:10px;padding:10px 14px;cursor:pointer;
+          border-bottom:1px solid #141e2d;font-size:13px}
+        .search-item:last-child{border-bottom:none}
+        .search-item:hover{background:#131c2b}
+        .search-ico{flex:none}
+        .search-lbl{color:#dfe7f2;flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+        .search-sub{color:#8396b0;font-size:11px;flex:none}
         .layer-panel{position:absolute;top:12px;right:12px;z-index:15;width:210px;background:#0e141f;
           border:1px solid #1e2a3d;border-radius:12px;overflow:hidden;box-shadow:0 10px 30px rgba(0,0,0,.4);
           font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif}
@@ -214,6 +309,22 @@ export default function AtlasMap() {
 
       <div ref={ref} className="atlas-map" />
 
+      <div className="search-box">
+        <input value={query} placeholder="Search cameras or a flight callsign…"
+          onChange={(e) => onSearch(e.target.value)} />
+        {results.length > 0 && (
+          <div className="search-res">
+            {results.map((r, i) => (
+              <div key={i} className="search-item" onClick={() => openResult(r)}>
+                <span className="search-ico">{r.type === "camera" ? "📷" : "✈"}</span>
+                <span className="search-lbl">{r.label}</span>
+                <span className="search-sub">{r.type === "camera" ? (r.source || "cam") : "flight"}</span>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
       <div className="layer-panel">
         <h3>LAYERS</h3>
         <div className={`layer-row ${on.cameras ? "on" : ""}`} onClick={() => toggle("cameras")}>
@@ -258,6 +369,9 @@ export default function AtlasMap() {
               onClick={() => navigator.clipboard?.writeText(`${sel.lat.toFixed(6)}, ${sel.lon.toFixed(6)}`)}>
               Copy coordinates
             </button>
+            <button className="cam-copy" onClick={() => navigator.clipboard?.writeText(shareLink())}>
+              Copy share link
+            </button>
             <br />
             <a className="cam-link" target="_blank" rel="noopener"
               href={`https://www.google.com/maps?q=${sel.lat},${sel.lon}`}>Open location in Google Maps ↗</a>
@@ -291,6 +405,9 @@ export default function AtlasMap() {
             <button className="cam-copy"
               onClick={() => navigator.clipboard?.writeText(`${sel.lat.toFixed(6)}, ${sel.lon.toFixed(6)}`)}>
               Copy coordinates
+            </button>
+            <button className="cam-copy" onClick={() => navigator.clipboard?.writeText(shareLink())}>
+              Copy share link
             </button>
             <br />
             {sel.hex && (
