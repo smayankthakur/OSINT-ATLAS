@@ -40,6 +40,13 @@ export async function GET(req: NextRequest) {
       }
       await db`update sources set last_run=now(), last_count=${cams.length} where id=${id}`;
       report[id] = cams.length;
+      // prune stale rows for curated, deterministic sources only (never for
+      // flaky external feeds, where a short fetch must not delete good rows)
+      if (id === "livestreams" && cams.length > 0) {
+        const keep = cams.map((c) => c.id);
+        const del = await db`delete from cameras where source_id=${id} and not (id = any(${keep}))`;
+        report[id] = `${cams.length} (pruned ${del.count})`;
+      }
     } catch (e: any) {
       report[id] = "error: " + (e?.message || e);
     }

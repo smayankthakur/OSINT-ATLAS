@@ -12,10 +12,14 @@ const STREAMS: L[] = [
   { id: "siddhivinayak",name: "Siddhivinayak Mumbai Live Darshan",      lat: 19.0170, lon: 72.8302, country: "IN", yt: "P3wZiZ2Gdh0" },
   { id: "baidyanath",   name: "Baba Baidyanath Dham, Deoghar",          lat: 24.4920, lon: 86.7000, country: "IN", yt: "vq8J-P-jkKE" },
   { id: "tiruchendur",  name: "Tiruchendur Murugan Temple",            lat: 8.4961,  lon: 78.1253, country: "IN", yt: "291XDJTjfUM" },
-  // Russia — city live cams
-  { id: "spb-nevsky",   name: "Nevsky Avenue, St Petersburg",          lat: 59.9330, lon: 30.3350, country: "RU", yt: "fUsJZTHeZn4" },
-  { id: "spb-zagorodny",name: "Zagorodny Avenue, St Petersburg",       lat: 59.9220, lon: 30.3400, country: "RU", yt: "h1wly909BYw" },
-  { id: "spb-ptz",      name: "St Petersburg PTZ Live",                lat: 59.9386, lon: 30.3141, country: "RU", yt: "VhGdKCs5KIA" },
+  // Russia — city live cams (all verified embeddable via YouTube oEmbed)
+  { id: "msk-novokosino", name: "Novokosino, Moscow",                  lat: 55.7450, lon: 37.8640, country: "RU", yt: "mFOFyCzV8wM" },
+  { id: "spb-palace",     name: "Palace Square, St Petersburg (4K)",   lat: 59.9398, lon: 30.3146, country: "RU", yt: "CjtIYbmVfck" },
+  { id: "spb-griboedov",  name: "Griboedov Canal, St Petersburg",      lat: 59.9270, lon: 30.3300, country: "RU", yt: "byKS0r0Skn0" },
+  { id: "spb-nevsky",     name: "Nevsky Ave / Sadovaya, St Petersburg",lat: 59.9320, lon: 30.3360, country: "RU", yt: "RDchI1SLh4Q" },
+  { id: "spb-ptz",        name: "St Petersburg PTZ Live",              lat: 59.9386, lon: 30.3141, country: "RU", yt: "VhGdKCs5KIA" },
+  { id: "perm-fair",      name: "Perm — Permskaya Yarmarka",           lat: 58.0100, lon: 56.2300, country: "RU", yt: "_6thFzLFy2E" },
+  { id: "solikamsk",      name: "Solikamsk, Perm Krai",                lat: 59.6300, lon: 56.7700, country: "RU", yt: "N7Qr7B43jig" },
 ];
 
 export const livestreams: SourceAdapter = {
