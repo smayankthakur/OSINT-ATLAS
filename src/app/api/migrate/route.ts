@@ -43,6 +43,9 @@ const SEED = [
   ["windy","Windy Webcams (global)","GLOBAL","Windy API ToS","windy","image",600,"© Windy.com"],
   ["optin","Opt-in submissions","GLOBAL","Owner consent on submission","optin","image",300,"Submitted by owner"],
   ["caltrans","Caltrans (California DOT)","US","Caltrans public data","caltrans","stream",300,"© Caltrans"],
+  ["fl511","Florida FL511","US","FL511 developer terms","dot511","stream",300,"© FDOT FL511"],
+  ["ga511","Georgia 511","US","511GA developer terms","dot511","stream",300,"© GDOT 511GA"],
+  ["ny511","New York 511","US","511NY developer terms","dot511","stream",300,"© NYSDOT 511NY"],
 ];
 
 export async function GET(req: NextRequest) {
