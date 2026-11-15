@@ -109,12 +109,16 @@ export default function AtlasMap() {
     if (!video) return;
     let hls: Hls | null = null;
     const fail = () => setStreamFail(true);
+    const play = () => video.play().catch(() => {});
     if (video.canPlayType("application/vnd.apple.mpegurl")) {
-      video.src = src; video.addEventListener("error", fail);
+      video.src = src;
+      video.addEventListener("loadedmetadata", play);
+      video.addEventListener("error", fail);
     } else if (Hls.isSupported()) {
       hls = new Hls({ enableWorker: true, maxBufferLength: 15 });
       hls.loadSource(src);
       hls.attachMedia(video);
+      hls.on(Hls.Events.MANIFEST_PARSED, play);
       hls.on(Hls.Events.ERROR, (_e, data) => { if (data.fatal) fail(); });
     } else { fail(); }
     return () => { if (hls) hls.destroy(); };
