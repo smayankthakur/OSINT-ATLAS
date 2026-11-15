@@ -60,14 +60,34 @@ export default function AtlasMap() {
 
       map.on("click", "cameras", (e) => {
         const f = e.features![0]; const p: any = f.properties;
-        new maplibregl.Popup()
+        const id = encodeURIComponent(p.id);
+        const stream: string = p.stream || "";
+        const isVideo = /\.(mp4|m3u8|webm)(\?|$)/i.test(stream);
+        // Video clip where one exists (e.g. TfL); otherwise an auto-refreshing
+        // still so it reads as live (most public cams are refreshed images).
+        const media = isVideo
+          ? `<video src="${stream}" autoplay loop muted playsinline
+                 style="width:100%;margin-top:6px;border-radius:6px;background:#000"></video>`
+          : `<img id="cam-${id}" src="/api/cam/${id}/image?t=${Date.now()}"
+                 style="width:100%;margin-top:6px;border-radius:6px;background:#000"
+                 onerror="this.style.opacity=.3"/>`;
+        const pop = new maplibregl.Popup({ maxWidth: "300px" })
           .setLngLat((f.geometry as any).coordinates)
-          .setHTML(`<div style="font:13px system-ui;color:#111;max-width:260px">
-            <b>📷 ${p.name ?? "Camera"}</b><br>
-            <img src="/api/cam/${encodeURIComponent(p.id)}/image?t=${Date.now()}"
-                 style="width:100%;margin-top:6px;border-radius:6px"
-                 onerror="this.style.display='none'"/></div>`)
+          .setHTML(`<div style="font:13px system-ui;color:#111;max-width:280px">
+            <b>📷 ${p.name ?? "Camera"}</b>
+            <span style="font-size:11px;color:#667">· ${p.source}</span><br>${media}
+            <div style="font-size:10px;color:#889;margin-top:4px">${isVideo ? "live clip" : "refreshing still"}</div>
+          </div>`)
           .addTo(map);
+        // refresh the still every 4s while the popup is open
+        if (!isVideo) {
+          const iv = setInterval(() => {
+            const el = document.getElementById(`cam-${id}`) as HTMLImageElement | null;
+            if (!el) { clearInterval(iv); return; }
+            el.src = `/api/cam/${id}/image?t=${Date.now()}`;
+          }, 4000);
+          pop.on("close", () => clearInterval(iv));
+        }
       });
     });
 
