@@ -46,31 +46,37 @@ export async function GET(req: NextRequest) {
   } catch {}
 
   const sdnText = await (await fetch(SDN, { cache: "no-store" })).text();
-  const rows = parseCsv(sdnText);
+  const parsed = parseCsv(sdnText);
   const db = sql();
-  let count = 0;
 
-  for (const r of rows) {
+  const recs: any[] = [];
+  for (const r of parsed) {
     const id = clean(r[0]); const name = clean(r[1]);
     if (!id || !name) continue;
-    const type = clean(r[2]) || "entity";
-    const program = clean(r[3]);
-    const callSign = clean(r[5]);
-    const flag = clean(r[9]);
     const remarks = clean(r[11]);
-    const imo = (remarks.match(/\bIMO\s*(\d{7})\b/i) || [])[1] || null;
-    const mmsi = (remarks.match(/\bMMSI\s*(\d{9})\b/i) || [])[1] || null;
-    const al = (aliases.get(id) || []).join("; ").slice(0, 2000);
+    recs.push({
+      id, name, type: clean(r[2]) || "entity", program: clean(r[3]),
+      call_sign: clean(r[5]) || null, flag: clean(r[9]) || null,
+      imo: (remarks.match(/\bIMO\s*(\d{7})\b/i) || [])[1] || null,
+      mmsi: (remarks.match(/\bMMSI\s*(\d{9})\b/i) || [])[1] || null,
+      aliases: (aliases.get(id) || []).join("; ").slice(0, 2000) || null,
+      remarks: remarks || null, updated_at: new Date().toISOString(),
+    });
+  }
 
+  // batch upserts to stay within the function time limit
+  let count = 0;
+  const SIZE = 500;
+  for (let i = 0; i < recs.length; i += SIZE) {
+    const batch = recs.slice(i, i + SIZE);
     await db`
-      insert into sanctions (id,name,type,program,call_sign,flag,imo,mmsi,aliases,remarks,updated_at)
-      values (${id},${name},${type},${program},${callSign || null},${flag || null},
-              ${imo},${mmsi},${al || null},${remarks || null}, now())
+      insert into sanctions ${db(batch, "id", "name", "type", "program", "call_sign",
+        "flag", "imo", "mmsi", "aliases", "remarks", "updated_at")}
       on conflict (id) do update set
         name=excluded.name, type=excluded.type, program=excluded.program,
         call_sign=excluded.call_sign, flag=excluded.flag, imo=excluded.imo,
         mmsi=excluded.mmsi, aliases=excluded.aliases, remarks=excluded.remarks, updated_at=now()`;
-    count++;
+    count += batch.length;
   }
   return NextResponse.json({ ok: true, ingested: count });
 }
