@@ -77,7 +77,7 @@ export default function AtlasMap() {
   function shareLink(): string {
     const map = mapRef.current; if (!map || !sel) return location.href;
     const c = map.getCenter(); const z = map.getZoom().toFixed(2);
-    const tail = sel.kind === "camera" ? `cam/${sel.id}` : `flt/${sel.hex}`;
+    const tail = sel.kind === "camera" ? `cam/${sel.id}` : sel.kind === "flight" ? `flt/${sel.hex}` : "";
     return `${location.origin}${location.pathname}#${z}/${c.lat.toFixed(4)}/${c.lng.toFixed(4)}/${tail}`;
   }
 
