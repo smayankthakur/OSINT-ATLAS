@@ -30,5 +30,18 @@ export async function GET(req: NextRequest) {
     }
   } catch {}
 
+  // OFAC sanctions screening on public entities/vessels/aircraft
+  try {
+    const db = sql();
+    const like = `%${term}%`;
+    const rows = await db`
+      select id,name,type,program,flag,imo,mmsi,aliases,remarks from sanctions
+      where name ilike ${like} or aliases ilike ${like} or imo = ${term} or mmsi = ${term}
+      order by name limit 10`;
+    for (const s of rows) results.push({ type: "sanction", id: s.id, label: s.name,
+      sdnType: s.type, program: s.program, flag: s.flag, imo: s.imo, mmsi: s.mmsi,
+      aliases: s.aliases, remarks: s.remarks });
+  } catch {}
+
   return NextResponse.json({ q: term, results });
 }

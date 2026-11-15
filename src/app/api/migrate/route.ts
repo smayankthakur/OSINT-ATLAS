@@ -29,6 +29,13 @@ create table if not exists camera_submissions (
   image_url text, stream_url text, owner_attested boolean not null default false,
   status text not null default 'pending', created_at timestamptz not null default now()
 );
+create table if not exists sanctions (
+  id text primary key, name text not null, type text, program text,
+  call_sign text, flag text, imo text, mmsi text, aliases text, remarks text,
+  updated_at timestamptz not null default now()
+);
+create index if not exists sanctions_name on sanctions (lower(name));
+create index if not exists sanctions_mmsi on sanctions (mmsi);
 `;
 
 const SEED = [

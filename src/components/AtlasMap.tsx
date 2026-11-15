@@ -17,7 +17,11 @@ type ShipSel = {
   kind: "ship"; mmsi: number; name: string; sog: number | null; cog: number | null;
   lat: number; lon: number;
 };
-type Selected = CameraSel | FlightSel | ShipSel;
+type SanctionSel = {
+  kind: "sanction"; id: string; name: string; sdnType: string; program: string;
+  flag: string; imo: string; mmsi: string; aliases: string; remarks: string;
+};
+type Selected = CameraSel | FlightSel | ShipSel | SanctionSel;
 
 const GROUPS: Record<string, string[]> = {
   cameras: ["clusters", "cluster-count", "cameras-pt", "cameras-hit"],
@@ -53,12 +57,17 @@ export default function AtlasMap() {
         : { kind: "camera" as const, id: r.id, name: r.label, source: r.source || "",
             country: "", lat: r.lat, lon: r.lon, stream: "" };
       setSel(s);
-    } else {
+      map?.flyTo({ center: [r.lon, r.lat], zoom: Math.max(map.getZoom(), 13) });
+    } else if (r.type === "aircraft") {
       const [cs, ty] = (r.label || "").split(" · ");
       setSel({ kind: "flight", hex: r.id, callsign: cs || "", type: ty || "",
         alt: null, track: null, mil: false, lat: r.lat, lon: r.lon });
+      map?.flyTo({ center: [r.lon, r.lat], zoom: Math.max(map.getZoom(), 13) });
+    } else if (r.type === "sanction") {
+      setSel({ kind: "sanction", id: r.id, name: r.label, sdnType: r.sdnType || "",
+        program: r.program || "", flag: r.flag || "", imo: r.imo || "", mmsi: r.mmsi || "",
+        aliases: r.aliases || "", remarks: r.remarks || "" });
     }
-    map?.flyTo({ center: [r.lon, r.lat], zoom: Math.max(map.getZoom(), 13) });
     setResults([]); setQuery(r.label || "");
   }
 
@@ -345,9 +354,9 @@ export default function AtlasMap() {
           <div className="search-res">
             {results.map((r, i) => (
               <div key={i} className="search-item" onClick={() => openResult(r)}>
-                <span className="search-ico">{r.type === "camera" ? "📷" : "✈"}</span>
+                <span className="search-ico">{r.type === "camera" ? "📷" : r.type === "aircraft" ? "✈" : "⚠️"}</span>
                 <span className="search-lbl">{r.label}</span>
-                <span className="search-sub">{r.type === "camera" ? (r.source || "cam") : "flight"}</span>
+                <span className="search-sub">{r.type === "camera" ? (r.source || "cam") : r.type === "aircraft" ? "flight" : "OFAC"}</span>
               </div>
             ))}
           </div>
@@ -477,6 +486,36 @@ export default function AtlasMap() {
             <br />
             <a className="cam-link" target="_blank" rel="noopener"
               href={`https://www.marinetraffic.com/en/ais/details/ships/mmsi:${sel.mmsi}`}>Vessel details ↗</a>
+          </div>
+        </div>
+      )}
+
+      {sel && sel.kind === "sanction" && (
+        <div className="cam-panel">
+          <div className="cam-head">
+            <h2>⚠️ {sel.name}</h2>
+            <button className="cam-close" onClick={() => setSel(null)} aria-label="Close">×</button>
+          </div>
+          <div className="cam-body">
+            <span className="cam-badge cam-mil">● OFAC sanctioned</span>
+            <div className="cam-rows">
+              <div className="cam-row"><span className="k">Type</span><span className="v">{sel.sdnType || "entity"}</span></div>
+              <div className="cam-row"><span className="k">Program</span><span className="v">{sel.program || "—"}</span></div>
+              {sel.flag && <div className="cam-row"><span className="k">Flag</span><span className="v">{sel.flag}</span></div>}
+              {sel.imo && <div className="cam-row"><span className="k">IMO</span><span className="v">{sel.imo}</span></div>}
+              {sel.mmsi && <div className="cam-row"><span className="k">MMSI</span><span className="v">{sel.mmsi}</span></div>}
+              <div className="cam-row"><span className="k">SDN ID</span><span className="v">{sel.id}</span></div>
+            </div>
+            {sel.aliases && (
+              <p style={{ fontSize: 12, color: "#8396b0", marginTop: 14, lineHeight: 1.6 }}>
+                <b style={{ color: "#dfe7f2" }}>Also known as:</b> {sel.aliases}
+              </p>
+            )}
+            {sel.remarks && (
+              <p style={{ fontSize: 12, color: "#8396b0", marginTop: 8, lineHeight: 1.6 }}>{sel.remarks}</p>
+            )}
+            <a className="cam-link" target="_blank" rel="noopener"
+              href={`https://sanctionssearch.ofac.treas.gov/Details.aspx?id=${sel.id}`}>View on OFAC ↗</a>
           </div>
         </div>
       )}
