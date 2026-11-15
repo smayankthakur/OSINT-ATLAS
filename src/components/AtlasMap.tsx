@@ -5,20 +5,26 @@ import "maplibre-gl/dist/maplibre-gl.css";
 
 const STYLE = "https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json";
 
-type Selected = {
-  id: string; name: string; source: string; country: string;
+type CameraSel = {
+  kind: "camera"; id: string; name: string; source: string; country: string;
   lat: number; lon: number; stream: string;
 };
+type FlightSel = {
+  kind: "flight"; hex: string; callsign: string; type: string;
+  alt: number | null; track: number | null; mil: boolean; lat: number; lon: number;
+};
+type Selected = CameraSel | FlightSel;
 
 export default function AtlasMap() {
   const ref = useRef<HTMLDivElement>(null);
   const [sel, setSel] = useState<Selected | null>(null);
   const [imgT, setImgT] = useState(Date.now());
 
-  // refresh the still every 4s while a camera is open (reads as live)
+  // refresh the camera still every 3s while open (and immediately on open)
   useEffect(() => {
-    if (!sel) return;
-    const iv = setInterval(() => setImgT(Date.now()), 4000);
+    if (!sel || sel.kind !== "camera") return;
+    setImgT(Date.now());
+    const iv = setInterval(() => setImgT(Date.now()), 3000);
     return () => clearInterval(iv);
   }, [sel]);
 
@@ -44,7 +50,9 @@ export default function AtlasMap() {
           "circle-color": "#38bdf8", "circle-opacity": 0.85,
           "circle-stroke-width": 1, "circle-stroke-color": "#0a0e14" } });
       map.addLayer({ id: "flights", type: "circle", source: "flights",
-        paint: { "circle-radius": 3, "circle-color": "#f4c430" } });
+        paint: { "circle-radius": ["interpolate", ["linear"], ["zoom"], 3, 3, 9, 6],
+          "circle-color": ["case", ["get", "mil"], "#ef4444", "#f4c430"],
+          "circle-stroke-width": 1, "circle-stroke-color": "#0a0e14" } });
       map.addLayer({ id: "quakes", type: "circle", source: "quakes",
         paint: { "circle-radius": ["interpolate", ["linear"], ["get", "mag"], 0, 3, 6, 16],
           "circle-color": "#f97316", "circle-opacity": 0.5 } });
@@ -61,21 +69,31 @@ export default function AtlasMap() {
       const t = setInterval(load, 30000);
       map.once("remove", () => clearInterval(t));
 
-      map.on("mouseenter", "cameras", () => { map.getCanvas().style.cursor = "pointer"; });
-      map.on("mouseleave", "cameras", () => { map.getCanvas().style.cursor = ""; });
+      for (const id of ["cameras", "flights"]) {
+        map.on("mouseenter", id, () => { map.getCanvas().style.cursor = "pointer"; });
+        map.on("mouseleave", id, () => { map.getCanvas().style.cursor = ""; });
+      }
+
       map.on("click", "cameras", (e) => {
         const f = e.features![0]; const p: any = f.properties;
         const [lon, lat] = (f.geometry as any).coordinates;
-        setImgT(Date.now());
-        setSel({ id: p.id, name: p.name || "Camera", source: p.source || "",
+        setSel({ kind: "camera", id: p.id, name: p.name || "Camera", source: p.source || "",
           country: p.country || "", lat, lon, stream: p.stream || "" });
+      });
+
+      map.on("click", "flights", (e) => {
+        const f = e.features![0]; const p: any = f.properties;
+        const [lon, lat] = (f.geometry as any).coordinates;
+        setSel({ kind: "flight", hex: p.hex || "", callsign: (p.flight || "").trim(),
+          type: p.type || "", alt: p.alt ?? null, track: p.track ?? null,
+          mil: p.mil === true || p.mil === "true", lat, lon });
       });
     });
 
     return () => map.remove();
   }, []);
 
-  const isVideo = sel ? /\.(mp4|m3u8|webm)(\?|$)/i.test(sel.stream) : false;
+  const camIsVideo = sel?.kind === "camera" && /\.(mp4|m3u8|webm)(\?|$)/i.test(sel.stream);
 
   return (
     <>
@@ -96,7 +114,8 @@ export default function AtlasMap() {
         .cam-media{width:100%;border-radius:10px;background:#000;display:block;aspect-ratio:16/9;object-fit:cover}
         .cam-badge{display:inline-block;font-size:11px;padding:2px 8px;border-radius:999px;margin-top:10px;
           background:rgba(56,189,248,.12);color:#38bdf8;border:1px solid rgba(56,189,248,.3)}
-        .cam-live{color:#22c55e}
+        .cam-live{color:#22c55e;border-color:rgba(34,197,94,.4);background:rgba(34,197,94,.12)}
+        .cam-mil{color:#ef4444;border-color:rgba(239,68,68,.4);background:rgba(239,68,68,.12)}
         .cam-rows{margin-top:16px;border-top:1px solid #1e2a3d}
         .cam-row{display:flex;justify-content:space-between;gap:12px;padding:10px 0;border-bottom:1px solid #141e2d;font-size:13px}
         .cam-row .k{color:#8396b0}
@@ -105,6 +124,8 @@ export default function AtlasMap() {
           background:#131c2b;color:#38bdf8;font-size:13px;cursor:pointer}
         .cam-copy:hover{background:#17203055}
         .cam-link{display:inline-block;margin-top:10px;color:#38bdf8;text-decoration:none;font-size:13px}
+        .plane-hero{display:flex;align-items:center;justify-content:center;height:120px;font-size:54px;
+          background:#0a1017;border-radius:10px;border:1px solid #1e2a3d}
         @media(max-width:720px){
           .cam-panel{width:100vw;height:50vh;top:auto;bottom:0;left:0;right:0;
             border-left:none;border-top:1px solid #1e2a3d;border-radius:14px 14px 0 0;animation:slideY .2s ease}
@@ -113,24 +134,23 @@ export default function AtlasMap() {
 
       <div ref={ref} className="atlas-map" />
 
-      {sel && (
+      {sel && sel.kind === "camera" && (
         <div className="cam-panel">
           <div className="cam-head">
             <h2>📷 {sel.name}</h2>
             <button className="cam-close" onClick={() => setSel(null)} aria-label="Close">×</button>
           </div>
           <div className="cam-body">
-            {isVideo ? (
+            {camIsVideo ? (
               <video className="cam-media" src={sel.stream} autoPlay loop muted playsInline />
             ) : (
               <img className="cam-media" alt={sel.name}
                 src={`/api/cam/${encodeURIComponent(sel.id)}/image?t=${imgT}`}
                 onError={(e) => ((e.target as HTMLImageElement).style.opacity = "0.3")} />
             )}
-            <span className={`cam-badge ${isVideo ? "cam-live" : ""}`}>
-              {isVideo ? "● live clip" : "refreshing still · every 4s"}
+            <span className={`cam-badge ${camIsVideo ? "cam-live" : ""}`}>
+              {camIsVideo ? "● live clip" : "● live · refreshing"}
             </span>
-
             <div className="cam-rows">
               <div className="cam-row"><span className="k">Source</span><span className="v">{sel.source || "—"}</span></div>
               <div className="cam-row"><span className="k">Country</span><span className="v">{sel.country || "—"}</span></div>
@@ -138,23 +158,48 @@ export default function AtlasMap() {
               <div className="cam-row"><span className="k">Longitude</span><span className="v">{sel.lon.toFixed(5)}</span></div>
               <div className="cam-row"><span className="k">Camera ID</span><span className="v">{sel.id}</span></div>
             </div>
-
             <button className="cam-copy"
               onClick={() => navigator.clipboard?.writeText(`${sel.lat.toFixed(6)}, ${sel.lon.toFixed(6)}`)}>
               Copy coordinates
             </button>
             <br />
             <a className="cam-link" target="_blank" rel="noopener"
-              href={`https://www.google.com/maps?q=${sel.lat},${sel.lon}`}>
-              Open location in Google Maps ↗
-            </a>
-            {sel.stream && !isVideo && (
-              <>
-                <br />
-                <a className="cam-link" target="_blank" rel="noopener" href={sel.stream}>
-                  Open source page ↗
-                </a>
-              </>
+              href={`https://www.google.com/maps?q=${sel.lat},${sel.lon}`}>Open location in Google Maps ↗</a>
+            {sel.stream && !camIsVideo && (
+              <><br /><a className="cam-link" target="_blank" rel="noopener" href={sel.stream}>Open source page ↗</a></>
+            )}
+          </div>
+        </div>
+      )}
+
+      {sel && sel.kind === "flight" && (
+        <div className="cam-panel">
+          <div className="cam-head">
+            <h2>✈ {sel.callsign || sel.hex || "Aircraft"}</h2>
+            <button className="cam-close" onClick={() => setSel(null)} aria-label="Close">×</button>
+          </div>
+          <div className="cam-body">
+            <div className="plane-hero">{sel.mil ? "🛩️" : "✈️"}</div>
+            <span className={`cam-badge ${sel.mil ? "cam-mil" : ""}`}>
+              {sel.mil ? "● military" : "● civil · live ADS-B"}
+            </span>
+            <div className="cam-rows">
+              <div className="cam-row"><span className="k">Callsign</span><span className="v">{sel.callsign || "—"}</span></div>
+              <div className="cam-row"><span className="k">Aircraft type</span><span className="v">{sel.type || "—"}</span></div>
+              <div className="cam-row"><span className="k">Altitude</span><span className="v">{sel.alt != null ? `${Number(sel.alt).toLocaleString()} ft` : "—"}</span></div>
+              <div className="cam-row"><span className="k">Heading</span><span className="v">{sel.track != null ? `${Math.round(Number(sel.track))}°` : "—"}</span></div>
+              <div className="cam-row"><span className="k">Latitude</span><span className="v">{sel.lat.toFixed(5)}</span></div>
+              <div className="cam-row"><span className="k">Longitude</span><span className="v">{sel.lon.toFixed(5)}</span></div>
+              <div className="cam-row"><span className="k">ICAO hex</span><span className="v">{sel.hex || "—"}</span></div>
+            </div>
+            <button className="cam-copy"
+              onClick={() => navigator.clipboard?.writeText(`${sel.lat.toFixed(6)}, ${sel.lon.toFixed(6)}`)}>
+              Copy coordinates
+            </button>
+            <br />
+            {sel.hex && (
+              <a className="cam-link" target="_blank" rel="noopener"
+                href={`https://globe.adsb.fi/?icao=${sel.hex}`}>Track on adsb.fi ↗</a>
             )}
           </div>
         </div>
