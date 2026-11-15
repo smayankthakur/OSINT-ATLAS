@@ -62,3 +62,19 @@ create table if not exists camera_submissions (
   status         text not null default 'pending', -- pending | approved | rejected
   created_at     timestamptz not null default now()
 );
+
+-- Row Level Security. All app DB access is via the service_role key (server
+-- only), which bypasses RLS; these policies make the tables safe even if the
+-- anon/publishable key is ever used from the client.
+alter table sources             enable row level security;
+alter table cameras             enable row level security;
+alter table camera_submissions  enable row level security;
+
+-- Public map may read approved cameras (anon). Nothing else is anon-readable.
+drop policy if exists cameras_public_read on cameras;
+create policy cameras_public_read on cameras
+  for select to anon using (available = true);
+
+-- Submissions: no anon access at all (insert goes through the server route
+-- using the service_role key, which bypasses RLS).
+-- (No anon policies on camera_submissions or sources = anon denied by default.)
