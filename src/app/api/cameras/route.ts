@@ -25,7 +25,7 @@ export async function GET(req: NextRequest) {
   const features = rows.map((c: any) => ({
     type: "Feature",
     geometry: { type: "Point", coordinates: [c.lon, c.lat] },
-    properties: { id: c.id, name: c.name, source: c.source_id, kind: c.kind, stream: c.stream_url || '' },
+    properties: { id: c.id, name: c.name, source: c.source_id, kind: c.kind, stream: c.stream_url || '', country: c.country || '' },
   }));
   return NextResponse.json(
     { type: "FeatureCollection", features },
