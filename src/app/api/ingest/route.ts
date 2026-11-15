@@ -14,7 +14,7 @@ export async function GET(req: NextRequest) {
 
   const db = sql();
   const which = req.nextUrl.searchParams.get("source") || "all";
-  const ids = which === "all" ? Object.keys(adapters) : [which];
+  const ids = which === "all" ? Object.keys(adapters) : which.split(",").map((s) => s.trim());
   const report: Record<string, number | string> = {};
 
   for (const id of ids) {
@@ -22,11 +22,17 @@ export async function GET(req: NextRequest) {
     if (!adapter) { report[id] = "unknown"; continue; }
     try {
       const cams = await adapter.fetchCameras();
-      for (const c of cams) {
+      // batch upserts (fast; avoids per-row round-trips and function timeouts)
+      const rows = cams.map((c) => ({
+        id: c.id, source_id: c.sourceId, name: c.name, lat: c.lat, lon: c.lon,
+        country: c.country ?? null, kind: c.kind, image_url: c.imageUrl ?? null,
+        stream_url: c.streamUrl ?? null, available: c.available ?? true,
+        updated_at: new Date().toISOString(),
+      }));
+      const SIZE = 500;
+      for (let i = 0; i < rows.length; i += SIZE) {
         await db`
-          insert into cameras (id,source_id,name,lat,lon,country,kind,image_url,stream_url,available,updated_at)
-          values (${c.id},${c.sourceId},${c.name},${c.lat},${c.lon},${c.country ?? null},
-                  ${c.kind},${c.imageUrl ?? null},${c.streamUrl ?? null},${c.available ?? true}, now())
+          insert into cameras ${db(rows.slice(i, i + SIZE) as any)}
           on conflict (id) do update set
             name=excluded.name, lat=excluded.lat, lon=excluded.lon,
             image_url=excluded.image_url, stream_url=excluded.stream_url,
