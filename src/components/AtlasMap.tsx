@@ -13,11 +13,16 @@ type FlightSel = {
   kind: "flight"; hex: string; callsign: string; type: string;
   alt: number | null; track: number | null; mil: boolean; lat: number; lon: number;
 };
-type Selected = CameraSel | FlightSel;
+type ShipSel = {
+  kind: "ship"; mmsi: number; name: string; sog: number | null; cog: number | null;
+  lat: number; lon: number;
+};
+type Selected = CameraSel | FlightSel | ShipSel;
 
 const GROUPS: Record<string, string[]> = {
   cameras: ["clusters", "cluster-count", "cameras-pt", "cameras-hit"],
   flights: ["flights", "flights-hit"],
+  ships: ["ships", "ships-hit"],
   quakes: ["quakes"],
 };
 
@@ -29,8 +34,8 @@ export default function AtlasMap() {
   const searchTimer = useRef<any>(null);
   const [sel, setSel] = useState<Selected | null>(null);
   const [imgT, setImgT] = useState(Date.now());
-  const [on, setOn] = useState({ cameras: true, flights: true, quakes: true });
-  const [counts, setCounts] = useState({ cameras: 0, flights: 0, quakes: 0 });
+  const [on, setOn] = useState({ cameras: true, flights: true, ships: true, quakes: true });
+  const [counts, setCounts] = useState({ cameras: 0, flights: 0, ships: 0, quakes: 0 });
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<any[]>([]);
 
@@ -118,6 +123,7 @@ export default function AtlasMap() {
       map.addSource("cameras", { type: "geojson", data: gj(),
         cluster: true, clusterMaxZoom: 12, clusterRadius: 45 });
       map.addSource("flights", { type: "geojson", data: gj() });
+      map.addSource("ships", { type: "geojson", data: gj() });
       map.addSource("quakes", { type: "geojson", data: gj() });
 
       // camera clusters
@@ -151,6 +157,13 @@ export default function AtlasMap() {
           "circle-color": ["case", ["get", "mil"], "#ef4444", "#f4c430"],
           "circle-stroke-width": 1.5, "circle-stroke-color": "#06121f" } });
 
+      // ships (wide hit target + visible dot)
+      map.addLayer({ id: "ships-hit", type: "circle", source: "ships",
+        paint: { "circle-radius": 12, "circle-color": "#2dd4bf", "circle-opacity": 0.001 } });
+      map.addLayer({ id: "ships", type: "circle", source: "ships",
+        paint: { "circle-radius": ["interpolate", ["linear"], ["zoom"], 3, 3, 9, 6],
+          "circle-color": "#2dd4bf", "circle-stroke-width": 1, "circle-stroke-color": "#06121f" } });
+
       map.addLayer({ id: "quakes", type: "circle", source: "quakes",
         paint: { "circle-radius": ["interpolate", ["linear"], ["get", "mag"], 0, 3, 6, 16],
           "circle-color": "#f97316", "circle-opacity": 0.5 } });
@@ -167,6 +180,11 @@ export default function AtlasMap() {
           (map.getSource("flights") as any)?.setData(fl);
           flightFeats.current = fl.features || [];
           setCounts((x) => ({ ...x, flights: fl.features?.length || 0 }));
+        } catch {}
+        try {
+          const sh = await (await fetch("/api/ships")).json();
+          (map.getSource("ships") as any)?.setData(sh);
+          setCounts((x) => ({ ...x, ships: sh.features?.length || 0 }));
         } catch {}
         try {
           const q = await (await fetch(
@@ -212,10 +230,17 @@ export default function AtlasMap() {
         });
       });
 
-      for (const id of ["clusters", "cameras-hit", "flights-hit"]) {
+      for (const id of ["clusters", "cameras-hit", "flights-hit", "ships-hit"]) {
         map.on("mouseenter", id, () => { map.getCanvas().style.cursor = "pointer"; });
         map.on("mouseleave", id, () => { map.getCanvas().style.cursor = ""; });
       }
+
+      map.on("click", "ships-hit", (e) => {
+        const f = e.features![0]; const p: any = f.properties;
+        const [lon, lat] = (f.geometry as any).coordinates;
+        setSel({ kind: "ship", mmsi: p.mmsi, name: (p.name || "").trim(),
+          sog: p.sog ?? null, cog: p.cog ?? null, lat, lon });
+      });
 
       map.on("click", "cameras-hit", (e) => {
         const f = e.features![0]; const p: any = f.properties;
@@ -300,6 +325,10 @@ export default function AtlasMap() {
         .cam-link{display:inline-block;margin-top:10px;color:#38bdf8;text-decoration:none;font-size:13px}
         .plane-hero{display:flex;align-items:center;justify-content:center;height:120px;font-size:54px;
           background:#0a1017;border-radius:10px;border:1px solid #1e2a3d}
+        .optin-btn{position:absolute;bottom:16px;left:50%;transform:translateX(-50%);z-index:16;
+          background:#38bdf8;color:#06121f;font-weight:600;font-size:13px;padding:10px 18px;border-radius:999px;
+          text-decoration:none;box-shadow:0 8px 24px rgba(0,0,0,.4);font-family:system-ui}
+        .optin-btn:hover{background:#5cc9fb}
         @media(max-width:720px){
           .cam-panel{width:100vw;height:50vh;top:auto;bottom:0;left:0;right:0;
             border-left:none;border-top:1px solid #1e2a3d;border-radius:14px 14px 0 0;animation:slideY .2s ease}
@@ -335,11 +364,17 @@ export default function AtlasMap() {
           <span className="ldot" style={{ background: "#f4c430" }} />
           <span className="lname">Flights</span><span className="lcount">{n(counts.flights)}</span><span className="lsw" />
         </div>
+        <div className={`layer-row ${on.ships ? "on" : ""}`} onClick={() => toggle("ships")}>
+          <span className="ldot" style={{ background: "#2dd4bf" }} />
+          <span className="lname">Ships</span><span className="lcount">{n(counts.ships)}</span><span className="lsw" />
+        </div>
         <div className={`layer-row ${on.quakes ? "on" : ""}`} onClick={() => toggle("quakes")}>
           <span className="ldot" style={{ background: "#f97316" }} />
           <span className="lname">Earthquakes</span><span className="lcount">{n(counts.quakes)}</span><span className="lsw" />
         </div>
       </div>
+
+      <a className="optin-btn" href="/submit" target="_blank" rel="noopener">+ List your camera</a>
 
       {sel && sel.kind === "camera" && (
         <div className="cam-panel">
@@ -414,6 +449,34 @@ export default function AtlasMap() {
               <a className="cam-link" target="_blank" rel="noopener"
                 href={`https://globe.adsb.fi/?icao=${sel.hex}`}>Track on adsb.fi ↗</a>
             )}
+          </div>
+        </div>
+      )}
+
+      {sel && sel.kind === "ship" && (
+        <div className="cam-panel">
+          <div className="cam-head">
+            <h2>🚢 {sel.name || `MMSI ${sel.mmsi}`}</h2>
+            <button className="cam-close" onClick={() => setSel(null)} aria-label="Close">×</button>
+          </div>
+          <div className="cam-body">
+            <div className="plane-hero">🚢</div>
+            <span className="cam-badge">● live AIS</span>
+            <div className="cam-rows">
+              <div className="cam-row"><span className="k">Name</span><span className="v">{sel.name || "—"}</span></div>
+              <div className="cam-row"><span className="k">MMSI</span><span className="v">{sel.mmsi}</span></div>
+              <div className="cam-row"><span className="k">Speed</span><span className="v">{sel.sog != null ? `${sel.sog} kn` : "—"}</span></div>
+              <div className="cam-row"><span className="k">Course</span><span className="v">{sel.cog != null ? `${Math.round(Number(sel.cog))}°` : "—"}</span></div>
+              <div className="cam-row"><span className="k">Latitude</span><span className="v">{sel.lat.toFixed(5)}</span></div>
+              <div className="cam-row"><span className="k">Longitude</span><span className="v">{sel.lon.toFixed(5)}</span></div>
+            </div>
+            <button className="cam-copy"
+              onClick={() => navigator.clipboard?.writeText(`${sel.lat.toFixed(6)}, ${sel.lon.toFixed(6)}`)}>
+              Copy coordinates
+            </button>
+            <br />
+            <a className="cam-link" target="_blank" rel="noopener"
+              href={`https://www.marinetraffic.com/en/ais/details/ships/mmsi:${sel.mmsi}`}>Vessel details ↗</a>
           </div>
         </div>
       )}
