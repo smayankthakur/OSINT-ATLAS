@@ -10,6 +10,7 @@ const securityHeaders = [
     "default-src 'self'; img-src 'self' data: blob: https:; media-src 'self' blob: https:; " +
     "connect-src 'self' https://basemaps.cartocdn.com https://*.basemaps.cartocdn.com " +
     "https://earthquake.usgs.gov https://api.tfl.gov.uk https://eonet.gsfc.nasa.gov; " +
+    "frame-src 'self' https://www.youtube.com https://www.youtube-nocookie.com; " +
     "script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; worker-src 'self' blob:" },
 ];
 

@@ -297,7 +297,8 @@ export default function AtlasMap() {
     return () => map.remove();
   }, []);
 
-  const camIsClip = sel?.kind === "camera" && /\.(mp4|webm)(\?|$)/i.test(sel.stream);
+  const camIsYoutube = sel?.kind === "camera" && /youtube\.com\/embed\//i.test(sel.stream);
+  const camIsClip = sel?.kind === "camera" && !camIsYoutube && /\.(mp4|webm)(\?|$)/i.test(sel.stream);
   const camHasHls = sel?.kind === "camera" && /\.m3u8(\?|$)/i.test(sel.stream);
   const showHlsVideo = camHasHls && !streamFail;
   const n = (v: number) => v.toLocaleString();
@@ -422,7 +423,11 @@ export default function AtlasMap() {
             <button className="cam-close" onClick={() => setSel(null)} aria-label="Close">×</button>
           </div>
           <div className="cam-body">
-            {camIsClip ? (
+            {camIsYoutube ? (
+              <iframe className="cam-media" src={sel.stream} title={sel.name}
+                allow="autoplay; encrypted-media; picture-in-picture" allowFullScreen
+                frameBorder="0" referrerPolicy="origin-when-cross-origin" />
+            ) : camIsClip ? (
               <video className="cam-media" src={sel.stream} autoPlay loop muted playsInline />
             ) : showHlsVideo ? (
               <video id="cam-video" className="cam-media" autoPlay loop muted playsInline />
@@ -431,8 +436,8 @@ export default function AtlasMap() {
                 src={`/api/cam/${encodeURIComponent(sel.id)}/image?t=${imgT}`}
                 onError={(e) => ((e.target as HTMLImageElement).style.opacity = "0.3")} />
             )}
-            <span className={`cam-badge ${(camIsClip || showHlsVideo) ? "cam-live" : ""}`}>
-              {showHlsVideo ? "● live video" : camIsClip ? "● live clip" : "● live · refreshing"}
+            <span className={`cam-badge ${(camIsClip || showHlsVideo || camIsYoutube) ? "cam-live" : ""}`}>
+              {camIsYoutube ? "● live stream" : showHlsVideo ? "● live video" : camIsClip ? "● live clip" : "● live · refreshing"}
             </span>
             <div className="cam-rows">
               <div className="cam-row"><span className="k">Source</span><span className="v">{sel.source || "—"}</span></div>
@@ -454,7 +459,11 @@ export default function AtlasMap() {
             {camHasHls && streamFail && (
               <><br /><a className="cam-link" target="_blank" rel="noopener" href={sel.stream}>▶ Open live stream ↗</a></>
             )}
-            {sel.stream && !camIsClip && !camHasHls && (
+            {camIsYoutube && (
+              <><br /><a className="cam-link" target="_blank" rel="noopener"
+                href={sel.stream.replace("/embed/", "/watch?v=").replace(/\?.*$/, "")}>▶ Open stream on YouTube ↗</a></>
+            )}
+            {sel.stream && !camIsClip && !camHasHls && !camIsYoutube && (
               <><br /><a className="cam-link" target="_blank" rel="noopener" href={sel.stream}>Open source page ↗</a></>
             )}
           </div>
