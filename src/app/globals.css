@@ -1,0 +1,4 @@
+:root{--bg:#0a0e14;--panel:#0e141f;--panel2:#131c2b;--line:#1e2a3d;--txt:#dfe7f2;--dim:#8396b0;--accent:#38bdf8}
+*{box-sizing:border-box}
+html,body{margin:0;height:100%;background:var(--bg);color:var(--txt);
+  font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;overflow:hidden}
