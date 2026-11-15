@@ -7,7 +7,7 @@ const securityHeaders = [
   { key: "Permissions-Policy", value: "camera=(), microphone=(), geolocation=()" },
   // CSP allows the map's tile/style hosts + our own API. Tighten per deploy.
   { key: "Content-Security-Policy", value:
-    "default-src 'self'; img-src 'self' data: blob: https:; " +
+    "default-src 'self'; img-src 'self' data: blob: https:; media-src 'self' blob: https:; " +
     "connect-src 'self' https://basemaps.cartocdn.com https://*.basemaps.cartocdn.com " +
     "https://earthquake.usgs.gov https://api.tfl.gov.uk https://eonet.gsfc.nasa.gov; " +
     "script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; worker-src 'self' blob:" },

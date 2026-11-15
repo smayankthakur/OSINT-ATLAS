@@ -1,6 +1,7 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
 import maplibregl from "maplibre-gl";
+import Hls from "hls.js";
 import "maplibre-gl/dist/maplibre-gl.css";
 
 const STYLE = "https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json";
@@ -38,6 +39,7 @@ export default function AtlasMap() {
   const searchTimer = useRef<any>(null);
   const [sel, setSel] = useState<Selected | null>(null);
   const [imgT, setImgT] = useState(Date.now());
+  const [streamFail, setStreamFail] = useState(false);
   const [on, setOn] = useState({ cameras: true, flights: true, ships: true, quakes: true });
   const [counts, setCounts] = useState({ cameras: 0, flights: 0, ships: 0, quakes: 0 });
   const [query, setQuery] = useState("");
@@ -95,6 +97,27 @@ export default function AtlasMap() {
     setImgT(Date.now());
     const iv = setInterval(() => setImgT(Date.now()), 3000);
     return () => clearInterval(iv);
+  }, [sel]);
+
+  // play live HLS (.m3u8) via hls.js through our same-origin proxy; fall back
+  // to the refreshing still if the stream can't play
+  useEffect(() => {
+    setStreamFail(false);
+    if (!sel || sel.kind !== "camera" || !/\.m3u8(\?|$)/i.test(sel.stream)) return;
+    const src = `/api/hls?u=${encodeURIComponent(sel.stream)}`;
+    const video = document.getElementById("cam-video") as HTMLVideoElement | null;
+    if (!video) return;
+    let hls: Hls | null = null;
+    const fail = () => setStreamFail(true);
+    if (video.canPlayType("application/vnd.apple.mpegurl")) {
+      video.src = src; video.addEventListener("error", fail);
+    } else if (Hls.isSupported()) {
+      hls = new Hls({ enableWorker: true, maxBufferLength: 15 });
+      hls.loadSource(src);
+      hls.attachMedia(video);
+      hls.on(Hls.Events.ERROR, (_e, data) => { if (data.fatal) fail(); });
+    } else { fail(); }
+    return () => { if (hls) hls.destroy(); };
   }, [sel]);
 
 
@@ -270,8 +293,9 @@ export default function AtlasMap() {
     return () => map.remove();
   }, []);
 
-  const camIsVideo = sel?.kind === "camera" && /\.(mp4|webm)(\?|$)/i.test(sel.stream);
-  const camHasLiveStream = sel?.kind === "camera" && /\.m3u8(\?|$)/i.test(sel.stream);
+  const camIsClip = sel?.kind === "camera" && /\.(mp4|webm)(\?|$)/i.test(sel.stream);
+  const camHasHls = sel?.kind === "camera" && /\.m3u8(\?|$)/i.test(sel.stream);
+  const showHlsVideo = camHasHls && !streamFail;
   const n = (v: number) => v.toLocaleString();
 
   return (
@@ -394,15 +418,17 @@ export default function AtlasMap() {
             <button className="cam-close" onClick={() => setSel(null)} aria-label="Close">×</button>
           </div>
           <div className="cam-body">
-            {camIsVideo ? (
+            {camIsClip ? (
               <video className="cam-media" src={sel.stream} autoPlay loop muted playsInline />
+            ) : showHlsVideo ? (
+              <video id="cam-video" className="cam-media" autoPlay loop muted playsInline />
             ) : (
               <img className="cam-media" alt={sel.name}
                 src={`/api/cam/${encodeURIComponent(sel.id)}/image?t=${imgT}`}
                 onError={(e) => ((e.target as HTMLImageElement).style.opacity = "0.3")} />
             )}
-            <span className={`cam-badge ${camIsVideo ? "cam-live" : ""}`}>
-              {camIsVideo ? "● live clip" : "● live · refreshing"}
+            <span className={`cam-badge ${(camIsClip || showHlsVideo) ? "cam-live" : ""}`}>
+              {showHlsVideo ? "● live video" : camIsClip ? "● live clip" : "● live · refreshing"}
             </span>
             <div className="cam-rows">
               <div className="cam-row"><span className="k">Source</span><span className="v">{sel.source || "—"}</span></div>
@@ -421,10 +447,10 @@ export default function AtlasMap() {
             <br />
             <a className="cam-link" target="_blank" rel="noopener"
               href={`https://www.google.com/maps?q=${sel.lat},${sel.lon}`}>Open location in Google Maps ↗</a>
-            {camHasLiveStream && (
-              <><br /><a className="cam-link" target="_blank" rel="noopener" href={sel.stream}>▶ Open live video stream ↗</a></>
+            {camHasHls && streamFail && (
+              <><br /><a className="cam-link" target="_blank" rel="noopener" href={sel.stream}>▶ Open live stream ↗</a></>
             )}
-            {sel.stream && !camIsVideo && !camHasLiveStream && (
+            {sel.stream && !camIsClip && !camHasHls && (
               <><br /><a className="cam-link" target="_blank" rel="noopener" href={sel.stream}>Open source page ↗</a></>
             )}
           </div>
