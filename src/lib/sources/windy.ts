@@ -3,7 +3,13 @@ import type { SourceAdapter, NormalisedCamera } from "@/lib/types";
 // Global — Windy Webcams API v3 (free Webcams-API key).
 // Use the `countries` filter (confirmed: IN=11, RU=478 webcams). Priority
 // countries first (India + Russia incl. Orenburg), then a global sweep.
-const PRIORITY = "IN,RU,GB,US,DE,FR,IT,ES,CH,AT,NL,BE,PL,CZ,GR,TR,AE,SA,NP,LK,TH,SG,JP,KR,AU,NZ,CA,MX,BR,ZA,EG,PT,SE,NO,FI,HR,SI,HU,RO,UA"; // broad global priority
+const COUNTRIES = ["IN","RU","GB","US","DE","FR","IT","ES","CH","AT","NL","BE","PL",
+  "CZ","GR","TR","AE","SA","NP","LK","TH","SG","JP","KR","AU","NZ","CA","MX","BR",
+  "ZA","EG","PT","SE","NO","FI","HR","SI","HU","RO","UA"];
+// Windy rejects too many countries in one request, so query in small chunks.
+function chunk<T>(a: T[], n: number): T[][] {
+  const r: T[][] = []; for (let i = 0; i < a.length; i += n) r.push(a.slice(i, i + n)); return r;
+}
 
 async function pageUrl(key: string, extra: string, cap: number): Promise<any[]> {
   const out: any[] = [];
@@ -27,9 +33,12 @@ export const windy: SourceAdapter = {
     if (!key) { console.warn("[windy] no key"); return []; }
 
     const seen = new Map<number, any>();
-    try {
-      for (const c of await pageUrl(key, `&countries=${PRIORITY}`, 1000)) seen.set(c.webcamId, c);
-    } catch (e) { console.warn("[windy] priority", e); }
+    // query countries in small chunks (Windy caps how many per request)
+    for (const grp of chunk(COUNTRIES, 4)) {
+      try {
+        for (const c of await pageUrl(key, `&countries=${grp.join(",")}`, 600)) seen.set(c.webcamId, c);
+      } catch (e) { console.warn("[windy] chunk", grp, e); }
+    }
     try {
       for (const c of await pageUrl(key, "", 200)) seen.set(c.webcamId, c);
     } catch {}
