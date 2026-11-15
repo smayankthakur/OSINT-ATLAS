@@ -3,7 +3,7 @@ import type { SourceAdapter, NormalisedCamera } from "@/lib/types";
 // Global — Windy Webcams API v3 (free Webcams-API key).
 // Use the `countries` filter (confirmed: IN=11, RU=478 webcams). Priority
 // countries first (India + Russia incl. Orenburg), then a global sweep.
-const PRIORITY = "IN,RU,GB,AE,NP,LK,TH,SG"; // India/Russia + nearby/popular
+const PRIORITY = "IN,RU,GB,US,DE,FR,IT,ES,CH,AT,NL,BE,PL,CZ,GR,TR,AE,SA,NP,LK,TH,SG,JP,KR,AU,NZ,CA,MX,BR,ZA,EG,PT,SE,NO,FI,HR,SI,HU,RO,UA"; // broad global priority
 
 async function pageUrl(key: string, extra: string, cap: number): Promise<any[]> {
   const out: any[] = [];

@@ -42,6 +42,7 @@ const SEED = [
   ["tfl","TfL JamCams (London)","GB","TfL open data","tfl","image",300,"© Transport for London"],
   ["windy","Windy Webcams (global)","GLOBAL","Windy API ToS","windy","image",600,"© Windy.com"],
   ["optin","Opt-in submissions","GLOBAL","Owner consent on submission","optin","image",300,"Submitted by owner"],
+  ["caltrans","Caltrans (California DOT)","US","Caltrans public data","caltrans","stream",300,"© Caltrans"],
 ];
 
 export async function GET(req: NextRequest) {

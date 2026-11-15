@@ -97,6 +97,7 @@ export default function AtlasMap() {
     return () => clearInterval(iv);
   }, [sel]);
 
+
   function toggle(group: keyof typeof on) {
     const map = mapRef.current; if (!map) return;
     const next = !on[group];
@@ -269,7 +270,8 @@ export default function AtlasMap() {
     return () => map.remove();
   }, []);
 
-  const camIsVideo = sel?.kind === "camera" && /\.(mp4|m3u8|webm)(\?|$)/i.test(sel.stream);
+  const camIsVideo = sel?.kind === "camera" && /\.(mp4|webm)(\?|$)/i.test(sel.stream);
+  const camHasLiveStream = sel?.kind === "camera" && /\.m3u8(\?|$)/i.test(sel.stream);
   const n = (v: number) => v.toLocaleString();
 
   return (
@@ -419,7 +421,10 @@ export default function AtlasMap() {
             <br />
             <a className="cam-link" target="_blank" rel="noopener"
               href={`https://www.google.com/maps?q=${sel.lat},${sel.lon}`}>Open location in Google Maps ↗</a>
-            {sel.stream && !camIsVideo && (
+            {camHasLiveStream && (
+              <><br /><a className="cam-link" target="_blank" rel="noopener" href={sel.stream}>▶ Open live video stream ↗</a></>
+            )}
+            {sel.stream && !camIsVideo && !camHasLiveStream && (
               <><br /><a className="cam-link" target="_blank" rel="noopener" href={sel.stream}>Open source page ↗</a></>
             )}
           </div>
