@@ -60,7 +60,14 @@ export async function GET(req: NextRequest) {
         values (${s[0]},${s[1]},${s[2]},${s[3]},${s[4]},${s[5]},${s[6]},${s[7]})
         on conflict (id) do nothing`;
     }
-    return NextResponse.json({ ok: true, migrated: true, sources: SEED.map((s) => s[0]) });
+    // Backfill: every Windy camera should use Windy's inline live player, never
+    // a windy.com page that opens in a new tab. Idempotent.
+    const fixed = await db`
+      update cameras
+      set stream_url = 'https://webcams.windy.com/webcams/public/embed/player/' || split_part(id, ':', 2) || '/live'
+      where source_id = 'windy'
+        and (stream_url is null or stream_url not like '%webcams.windy.com%')`;
+    return NextResponse.json({ ok: true, migrated: true, windyStreamsFixed: fixed.count, sources: SEED.map((s) => s[0]) });
   } catch (e: any) {
     return NextResponse.json({ error: e.message }, { status: 500 });
   }
