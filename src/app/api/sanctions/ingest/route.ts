@@ -70,8 +70,7 @@ export async function GET(req: NextRequest) {
   for (let i = 0; i < recs.length; i += SIZE) {
     const batch = recs.slice(i, i + SIZE);
     await db`
-      insert into sanctions ${db(batch, "id", "name", "type", "program", "call_sign",
-        "flag", "imo", "mmsi", "aliases", "remarks", "updated_at")}
+      insert into sanctions ${db(batch as any)}
       on conflict (id) do update set
         name=excluded.name, type=excluded.type, program=excluded.program,
         call_sign=excluded.call_sign, flag=excluded.flag, imo=excluded.imo,
