@@ -1,3 +1,7 @@
+-- NOTE: This file targets Supabase (uses anon-role RLS). For Neon / Vercel
+-- Postgres, DO NOT run this. Use the app's /api/migrate route instead,
+-- which creates a Neon-safe schema (no anon role). See README.
+
 -- OSINT ATLAS — source registry + camera store (Postgres / Supabase)
 
 -- One row per provider. This curated list is the product's value.

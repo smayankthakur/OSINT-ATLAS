@@ -1,11 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { adapters } from "@/lib/sources";
-import { admin } from "@/lib/db";
+import { sql } from "@/lib/db";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
 
-// Scheduled by vercel.json cron. Pulls each source, upserts normalised cameras.
 export async function GET(req: NextRequest) {
   const secret = req.nextUrl.searchParams.get("secret");
   const isCron = req.headers.get("x-vercel-cron") !== null;
@@ -13,9 +12,9 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   }
 
+  const db = sql();
   const which = req.nextUrl.searchParams.get("source") || "all";
   const ids = which === "all" ? Object.keys(adapters) : [which];
-  const db = admin();
   const report: Record<string, number | string> = {};
 
   for (const id of ids) {
@@ -23,18 +22,17 @@ export async function GET(req: NextRequest) {
     if (!adapter) { report[id] = "unknown"; continue; }
     try {
       const cams = await adapter.fetchCameras();
-      if (cams.length) {
-        const rows = cams.map((c) => ({
-          id: c.id, source_id: c.sourceId, name: c.name,
-          lat: c.lat, lon: c.lon, country: c.country, kind: c.kind,
-          image_url: c.imageUrl, stream_url: c.streamUrl,
-          available: c.available ?? true, updated_at: new Date().toISOString(),
-        }));
-        await db.from("cameras").upsert(rows, { onConflict: "id" });
+      for (const c of cams) {
+        await db`
+          insert into cameras (id,source_id,name,lat,lon,country,kind,image_url,stream_url,available,updated_at)
+          values (${c.id},${c.sourceId},${c.name},${c.lat},${c.lon},${c.country ?? null},
+                  ${c.kind},${c.imageUrl ?? null},${c.streamUrl ?? null},${c.available ?? true}, now())
+          on conflict (id) do update set
+            name=excluded.name, lat=excluded.lat, lon=excluded.lon,
+            image_url=excluded.image_url, stream_url=excluded.stream_url,
+            available=excluded.available, updated_at=now()`;
       }
-      await db.from("sources").update({
-        last_run: new Date().toISOString(), last_count: cams.length,
-      }).eq("id", id);
+      await db`update sources set last_run=now(), last_count=${cams.length} where id=${id}`;
       report[id] = cams.length;
     } catch (e: any) {
       report[id] = "error: " + (e?.message || e);

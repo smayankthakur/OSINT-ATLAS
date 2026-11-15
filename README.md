@@ -49,15 +49,25 @@ private people and private systems that didn't consent = out.**
 > access-controlled). India camera coverage = Windy webcams. For India traffic
 > *flow* (not cameras), add a Mappls/TomTom/HERE layer.
 
-## Setup
+## Setup (free Postgres — Neon or Vercel Postgres)
+
+No Supabase needed. Any Postgres works; the app reads one `DATABASE_URL`.
 
 1. `npm install`
-2. Supabase project (free). Run `db/schema.sql` in its SQL editor.
-3. `cp .env.example .env.local`, fill: `NEXT_PUBLIC_SUPABASE_URL`,
-   `SUPABASE_SERVICE_ROLE_KEY`, optional `WINDY_API_KEY`, `SHODAN_API_KEY`,
-   and an `INGEST_SECRET`.
-4. Seed once: `http://localhost:3000/api/ingest?source=all&secret=YOUR_SECRET`
-5. `npm run dev` → http://localhost:3000
+2. Create a **free** Postgres database and get its **pooled** connection string:
+   - Easiest: Vercel dashboard → your `osint-atlas` project → **Storage** →
+     **Create Database** → **Neon (Postgres)**. Vercel injects `DATABASE_URL`
+     automatically. (Or make a free db at neon.tech and paste the string.)
+3. Add env vars (Vercel → Settings → Environment Variables), then redeploy:
+   - `DATABASE_URL` (auto-set if you used Vercel Storage)
+   - `INGEST_SECRET` (any random string)
+   - `WINDY_API_KEY`, `SHODAN_API_KEY` (optional)
+4. Create the tables once: open
+   `https://<your-app>/api/migrate?secret=YOUR_SECRET`
+5. Pull cameras in: `https://<your-app>/api/ingest?source=all&secret=YOUR_SECRET`
+   → London (TfL) cameras populate immediately; Windy if a key is set.
+
+Local dev: `cp .env.example .env.local`, fill `DATABASE_URL`, then `npm run dev`.
 
 ## Deploy
 

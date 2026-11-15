@@ -1,8 +1,13 @@
-import { createClient } from "@supabase/supabase-js";
+import postgres from "postgres";
 
-// Server-only client (service role). Never import this into a client component.
-export function admin() {
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL!;
-  const key = process.env.SUPABASE_SERVICE_ROLE_KEY!;
-  return createClient(url, key, { auth: { persistSession: false } });
+// Provider-agnostic Postgres (Neon, Vercel Postgres, Supabase, any PG).
+// Set DATABASE_URL to the pooled connection string.
+let _sql: ReturnType<typeof postgres> | null = null;
+export function sql() {
+  if (!_sql) {
+    const url = process.env.DATABASE_URL;
+    if (!url) throw new Error("DATABASE_URL not set");
+    _sql = postgres(url, { ssl: "require", prepare: false });
+  }
+  return _sql;
 }
