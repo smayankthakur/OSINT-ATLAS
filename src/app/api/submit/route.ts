@@ -3,7 +3,27 @@ import { sql } from "@/lib/db";
 
 export const dynamic = "force-dynamic";
 
+// Best-effort in-memory rate limit (per warm instance). Blocks rapid abuse of
+// the public submission form; a durable store (e.g. Upstash) is the production
+// upgrade for limits that survive across serverless instances.
+const HITS = new Map<string, number[]>();
+const WINDOW_MS = 60_000;
+const MAX_PER_WINDOW = 5;
+function limited(ip: string): boolean {
+  const now = Date.now();
+  const arr = (HITS.get(ip) || []).filter((t) => now - t < WINDOW_MS);
+  arr.push(now);
+  HITS.set(ip, arr);
+  if (HITS.size > 5000) HITS.clear(); // crude memory cap
+  return arr.length > MAX_PER_WINDOW;
+}
+
 export async function POST(req: NextRequest) {
+  const ip = (req.headers.get("x-forwarded-for") || "").split(",")[0].trim() || "unknown";
+  if (limited(ip)) {
+    return NextResponse.json({ error: "too many submissions, try again shortly" }, { status: 429 });
+  }
+
   let b: any;
   try { b = await req.json(); } catch { return NextResponse.json({ error: "bad json" }, { status: 400 }); }
 

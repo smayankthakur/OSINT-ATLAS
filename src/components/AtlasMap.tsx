@@ -375,6 +375,10 @@ export default function AtlasMap() {
           background:#38bdf8;color:#06121f;font-weight:600;font-size:13px;padding:10px 18px;border-radius:999px;
           text-decoration:none;box-shadow:0 8px 24px rgba(0,0,0,.4);font-family:system-ui}
         .optin-btn:hover{background:#5cc9fb}
+        .legal-links{position:absolute;bottom:18px;left:58px;z-index:15;font-family:system-ui;
+          font-size:11px;color:#64748b;display:flex;gap:6px;align-items:center}
+        .legal-links a{color:#94a3b8;text-decoration:none}
+        .legal-links a:hover{color:#cbd5e1;text-decoration:underline}
         @media(max-width:720px){
           .cam-panel{width:100vw;height:50vh;top:auto;bottom:0;left:0;right:0;
             border-left:none;border-top:1px solid #1e2a3d;border-radius:14px 14px 0 0;animation:slideY .2s ease}
@@ -421,6 +425,12 @@ export default function AtlasMap() {
       </div>
 
       <a className="optin-btn" href="/submit" target="_blank" rel="noopener">+ List your camera</a>
+
+      <div className="legal-links">
+        <a href="/privacy" target="_blank" rel="noopener">Privacy</a>
+        <span>·</span>
+        <a href="/terms" target="_blank" rel="noopener">Terms</a>
+      </div>
 
       {sel && sel.kind === "camera" && (
         <div className="cam-panel">
